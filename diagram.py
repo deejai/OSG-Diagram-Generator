@@ -100,7 +100,7 @@ def quickMake():
     # for each .txt file beginning with "structure_", generate a graph and a .png
     for file in glob.glob("structure_*.txt"):
         # provides a unique id for up to (len(chars) * len(chars)) entries
-        char1 = i // len(chars)
+        char1 = (i // len(chars)) % len(chars)
         char2 = i % len(chars)
         tag = chars[char1] + chars[char2]
 
