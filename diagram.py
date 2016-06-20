@@ -92,7 +92,10 @@ class NodeDiagram():
         return line
 
     def generateFile(self):
-        self.graph.write_png(self.name + ".png")
+        if(self.generated):
+            print("PNG file cannot be generated until the graph is generated")
+        else:
+            self.graph.write_png(self.name + ".png")
 
 def quickMake():
     chars = "abcdefghijklmnopqrstuvwxyz"
