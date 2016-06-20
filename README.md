@@ -1,1 +1,2 @@
-"#OSG Diagram Generator\n##Created in python using pydot" 
+#OSG Diagram Generator
+##Created in python using pydot
