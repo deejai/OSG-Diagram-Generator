@@ -1,5 +1,6 @@
 import pydotplus as pydot
 import glob
+from itertools import takewhile
 
 DEBUG = True
 
@@ -7,7 +8,7 @@ class NodeDiagram():
 
     # Fill colors for given node types
     node_colors = {
-    "root"              : "white",
+    "title"              : "white",
     "LOD"               : "orange",
     "PagedLOD"          : "yellow",
     "Group"             : "green",
@@ -22,7 +23,21 @@ class NodeDiagram():
         self.tag = tag
         self.node_id = 0
         self.generated = False
-        self.file = open("structure_%s.txt" % name, "r")
+
+        file = open("structure_%s.txt" % name, "r")
+        self.source = file.read().split("\n")
+        self.num_lines = len(self.source)
+        self.depth = []
+
+        for i in range (0, len(self.source)):
+            self.source[i] = self.source[i].rstrip()
+            self.depth.append(self.source[i].count(' '))
+
+        for x in self.depth:
+            for y in range(0, x):
+                print(" ", end="")
+            print(x)
+
         self.graph = pydot.Dot(graph_type = "graph")
 
     def __get_last_tag(self):
@@ -46,12 +61,13 @@ class NodeDiagram():
         else:
             self.node_id += 1
             if DEBUG: print("%s, addednum: %s)" % (self.__get_last_tag(), addendum.replace("\n", "")) )
-            if node_type == "root":
+            if node_type == "title":
                 label = self.name
             else:
                 label = node_type + addendum
             self.graph.add_node(pydot.Node(str(self.node_id), label=label, style="filled",
                                                               fillcolor=self.node_colors[node_type]))
+            return self.node_id
 
     def __attach_ellipse(self, node_type, parent_id):
         # Add indicator that multiple nodes of the given type likely exist
@@ -68,39 +84,62 @@ class NodeDiagram():
             return
         else:
             if DEBUG: print('\n' + self.name)
-            self.__create_node("root")
-            self.__recursive_generate(None, 0)
+            self.__create_node("title")
+            self.__recursive_generate(0, None)
             self.generated = True
 
-    def __recursive_generate(self, parent_id, depth):
-        # parent_id can be None or int, so print its statement is separate
+    def __recursive_generate(self, line_num, parent_id):
+        # parent_id can be None or int, so its print statement is separate
         if DEBUG: print("recursive_generate(", end="")
-        if DEBUG: print(parent_id, end="")
-        if DEBUG: print(", %d)" % depth )
+        if DEBUG: print(parent_id)
 
-        while True:
-            line = self.file.readline().rstrip()
-            if not line: break
-            print(line)
+        # If the line doesn't exist, return
+        if line_num >= self.num_lines: return None
+        line = self.source[line_num]
 
-            addendum = ""
-            if ':' in line:
-                addendum += "\n<" + line.split(':')[1] + ">"
+        # Get addendum if it exists
+        if ':' in line: addendum = "\n<" + line.split(':')[1] + ">"
+        else:           addendum = ""
 
-            node_type = line.strip().split(':')[0].replace('*', "")
-            level = line.count(' ')
-            if level < depth: break
+        # Get the node type and create the node
+        node_type = line.strip().split(':')[0].replace('*', "")
+        this_node_id = self.__create_node(node_type, addendum)
 
-            self.__create_node( node_type, addendum )
-            if parent_id is not None:
-                self.__add_child(parent_id, self.node_id)
+        # Attach to parent
+        if parent_id is not None:
+            self.__add_child(parent_id, this_node_id)
+        
+        # Cycle through children
+        i = 0
+        while(line_num + i < self.num_lines):
+            i += 1
+            if(self.depth[line_num + i] == self.depth[line_num] + 1):
+                self.__recursive_generate(this_node_id, line_num + i)
+            else:
+                break
 
-                if( line[-1:] == '*' ):
-                    if DEBUG: print(" |--> multi")
-                    self.__attach_ellipse( node_type, parent_id )
-            line = self.__recursive_generate(self.node_id, level+1)
-            
-        return line
+        # while True:
+        #     line = self.file.readline().rstrip()
+        #     if not line: return
+        #     print(line)
+
+        #     current_depth = line.count(' ')
+        #     if current_depth < last_depth: return
+
+        #     if ':' in line: addendum = "\n<" + line.split(':')[1] + ">"
+        #     else:           addendum = ""
+
+        #     node_type = line.strip().split(':')[0].replace('*', "")
+
+        #     self.__create_node( node_type, addendum )
+
+        #     if parent_id is not None:
+        #         self.__add_child(parent_id, self.node_id)
+
+        #         if( line[-1:] == '*' ):
+        #             if DEBUG: print(" |--> multi")
+        #             self.__attach_ellipse( node_type, parent_id )
+        #     line = self.__recursive_generate(self.node_id, current_depth+1)
 
     def generate_file(self):
         if not self.generated:
