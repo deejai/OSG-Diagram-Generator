@@ -85,38 +85,36 @@ class NodeDiagram():
         else:
             if DEBUG: print('\n' + self.name)
             self.__create_node("title")
-            self.__recursive_generate(0, None)
+            self.__recursive_generate(None, 0, 0)
             self.generated = True
 
-    def __recursive_generate(self, line_num, parent_id):
+    def __recursive_generate(self, parent_id, last_depth, line_num):
         # parent_id can be None or int, so its print statement is separate
         if DEBUG: print("recursive_generate(", end="")
         if DEBUG: print(parent_id)
 
+        last_line = self.source[line_num]
         # If the line doesn't exist, return
-        if line_num >= self.num_lines: return None
-        line = self.source[line_num]
-
-        # Get addendum if it exists
-        if ':' in line: addendum = "\n<" + line.split(':')[1] + ">"
-        else:           addendum = ""
-
-        # Get the node type and create the node
-        node_type = line.strip().split(':')[0].replace('*', "")
-        this_node_id = self.__create_node(node_type, addendum)
-
-        # Attach to parent
-        if parent_id is not None:
-            self.__add_child(parent_id, this_node_id)
-        
-        # Cycle through children
-        i = 0
-        while(line_num + i < self.num_lines):
-            i += 1
-            if(self.depth[line_num + i] == self.depth[line_num] + 1):
-                self.__recursive_generate(this_node_id, line_num + i)
-            else:
+        while line_num < self.num_lines:
+            current_depth = self.source[line_num].count(" ")
+            if(current_depth == last_depth):
                 break
+            
+            # Get addendum if it exists
+            if ':' in last_line: addendum = "\n<" + last_line.split(':')[1] + ">"
+            else:                addendum = ""
+
+            # Get the node type and create the node
+            node_type = last_line.strip().split(':')[0].replace('*', "")
+            this_node_id = self.__create_node(node_type, addendum)
+
+            if current_depth >= last_depth:
+                # Attach to parent
+                if parent_id is not None:
+                    self.__add_child(parent_id, this_node_id)
+                last_line = self.__recursive_generate(this_node_id, current_depth+1, line_num+1)
+
+        return last_line
 
         # while True:
         #     line = self.file.readline().rstrip()
