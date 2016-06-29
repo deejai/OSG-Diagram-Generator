@@ -4,11 +4,16 @@ from itertools import takewhile
 
 DEBUG = True
 
+# class OsgNode(pydot.Node):
+#
+#     def __init__(self, node_type, addendum, depth):
+#         super(self, OsgNode).__init__()
+
 class NodeDiagram():
 
     # Fill colors for given node types
     node_colors = {
-    "title"              : "white",
+    "title"             : "white",
     "LOD"               : "orange",
     "PagedLOD"          : "yellow",
     "Group"             : "green",
@@ -22,23 +27,43 @@ class NodeDiagram():
         self.name = name
         self.tag = tag
         self.node_id = 0
+        self.ellipse_id = '*'
+        self.iterator = 0
         self.generated = False
 
         file = open("structure_%s.txt" % name, "r")
         self.source = file.read().split("\n")
-        self.num_lines = len(self.source)
-        self.depth = []
+        self.depth        = []
+        self.node_types   = []
+        self.addendums    = []
+        self.is_multinode = []
+        self.node_ids     = []
 
+        # Create a blank pydot graph
+        self.graph = pydot.Dot(graph_type = "graph")
+
+        # Initialize arrays
         for i in range (0, len(self.source)):
             self.source[i] = self.source[i].rstrip()
-            self.depth.append(self.source[i].count(' '))
+            
+            # Get the node types
+            self.node_types.append(self.source[i].strip().split(":")[0])
 
-        for x in self.depth:
-            for y in range(0, x):
-                print(" ", end="")
-            print(x)
+            # Determine if the node likely has multiples
+            self.is_multinode.append(self.node_types[i][-1:] == "*")
+            self.node_types[i] = self.node_types[i].replace("*", "")
 
-        self.graph = pydot.Dot(graph_type = "graph")
+            # Get the node depths
+            self.depth.append(self.source[i].count(" "))
+            
+            # Get addendum if it exists
+            if ":" in self.source[i]:
+                self.addendums.append("\n<" + self.source[i].split(":")[1] + ">")
+            else:
+                self.addendums.append("")
+
+            # Create each pydot node and store their ids
+            self.node_ids.append(self.__create_node(self.node_types[i], self.addendums[i]))
 
     def __get_last_tag(self):
         return str(self.node_id) + self.tag
@@ -55,6 +80,7 @@ class NodeDiagram():
 
     def __create_node(self, node_type, addendum=""):
         if DEBUG: print("create_node(%s) (node_id: " % node_type, end="")
+        
         if node_type not in self.node_colors:
             if DEBUG: print("ERROR)\nInvalid node_type: %s" % node_type)
             exit()
@@ -72,7 +98,8 @@ class NodeDiagram():
     def __attach_ellipse(self, node_type, parent_id):
         # Add indicator that multiple nodes of the given type likely exist
         # Creates a node, but doesn't increment self.node_id
-        ID = str(self.node_id) + '*'
+        ID = self.ellipse_id
+        self.ellipse_id += "*"
         self.graph.add_node(pydot.Node(ID, label="...", style="filled", 
                                            fillcolor=self.node_colors[node_type]))
         self.graph.add_edge(pydot.Edge(str(parent_id), ID))
@@ -83,61 +110,22 @@ class NodeDiagram():
             if DEBUG: print("Graph has already been generated")
             return
         else:
-            if DEBUG: print('\n' + self.name)
+            if DEBUG: print("\n" + self.name)
             self.__create_node("title")
-            self.__recursive_generate(None, 0, 0)
+            self.__generate_edges()
             self.generated = True
 
-    def __recursive_generate(self, parent_id, last_depth, line_num):
-        # parent_id can be None or int, so its print statement is separate
-        if DEBUG: print("recursive_generate(", end="")
-        if DEBUG: print(parent_id)
+    def __generate_edges(self):
+        stack = []
+        for x in range(len(self.node_ids)):
+            depth = self.depth[x]
+            stack[depth:] = [self.node_ids[x]]
+            print(stack)
 
-        last_line = self.source[line_num]
-        # If the line doesn't exist, return
-        while line_num < self.num_lines:
-            current_depth = self.source[line_num].count(" ")
-            if(current_depth == last_depth):
-                break
-            
-            # Get addendum if it exists
-            if ':' in last_line: addendum = "\n<" + last_line.split(':')[1] + ">"
-            else:                addendum = ""
-
-            # Get the node type and create the node
-            node_type = last_line.strip().split(':')[0].replace('*', "")
-            this_node_id = self.__create_node(node_type, addendum)
-
-            if current_depth >= last_depth:
-                # Attach to parent
-                if parent_id is not None:
-                    self.__add_child(parent_id, this_node_id)
-                last_line = self.__recursive_generate(this_node_id, current_depth+1, line_num+1)
-
-        return last_line
-
-        # while True:
-        #     line = self.file.readline().rstrip()
-        #     if not line: return
-        #     print(line)
-
-        #     current_depth = line.count(' ')
-        #     if current_depth < last_depth: return
-
-        #     if ':' in line: addendum = "\n<" + line.split(':')[1] + ">"
-        #     else:           addendum = ""
-
-        #     node_type = line.strip().split(':')[0].replace('*', "")
-
-        #     self.__create_node( node_type, addendum )
-
-        #     if parent_id is not None:
-        #         self.__add_child(parent_id, self.node_id)
-
-        #         if( line[-1:] == '*' ):
-        #             if DEBUG: print(" |--> multi")
-        #             self.__attach_ellipse( node_type, parent_id )
-        #     line = self.__recursive_generate(self.node_id, current_depth+1)
+            if(len(stack) > 1):
+                self.__add_child(stack[-2], stack[-1])
+                if(self.is_multinode[x]):
+                    self.__attach_ellipse(self.node_types[x], stack[-2])
 
     def generate_file(self):
         if not self.generated:
@@ -161,7 +149,10 @@ def quick_make():
         i += 1
 
 def main():
-    quick_make()
+    # quick_make()
+    test = NodeDiagram("FEATURE_SWITCH")
+    test.generate_graph()
+    test.generate_file()
 
 if __name__ == "__main__":
     main()
