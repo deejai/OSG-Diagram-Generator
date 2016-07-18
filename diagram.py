@@ -4,10 +4,15 @@ from itertools import takewhile
 
 DEBUG = True
 
-# class OsgNode(pydot.Node):
-#
-#     def __init__(self, node_type, addendum, depth):
-#         super(self, OsgNode).__init__()
+class OsgNode(pydot.Node):
+
+    def __init__(self, node_type, addendum, depth, id, is_multinode):
+        super(self, OsgNode).__init__()
+        self.node_type    = node_type
+        self.addendum     = addendum
+        self.depth        = depth
+        self.id           = id
+        self.is_multinode = is_multinode
 
 class NodeDiagram():
 
@@ -19,7 +24,8 @@ class NodeDiagram():
     "Group"             : "green",
     "MatrixTransform"   : "turquoise",
     "Switch"            : "violet",
-    "Geode"             : "tan"
+    "Geode"             : "tan",
+    "Node"              : "gold"
     }
 
 
@@ -33,11 +39,16 @@ class NodeDiagram():
 
         file = open("structure_%s.txt" % name, "r")
         self.source = file.read().split("\n")
-        self.depth        = []
         self.node_types   = []
         self.addendums    = []
-        self.is_multinode = []
+        self.depth        = []
         self.node_ids     = []
+        self.is_multinode = []
+        
+        #Experimental
+        self.nodes = []
+        self.test_node = OsgNode("Node", "test", 1, "test123", False)
+        nodes.append(test_node)
 
         # Create a blank pydot graph
         self.graph = pydot.Dot(graph_type = "graph")
@@ -74,9 +85,9 @@ class NodeDiagram():
             if DEBUG: print(" ERROR\nInvalid parent_id: %d. Current node_id: %d"
                                            % (parent_id, self.node_id) )
             exit()
-        else:
-            self.graph.add_edge(pydot.Edge(str(parent_id), str(child_id)))
-            if DEBUG: print(" Complete.")
+            
+        self.graph.add_edge(pydot.Edge(str(parent_id), str(child_id)))
+        if DEBUG: print(" Complete.")
 
     def __create_node(self, node_type, addendum=""):
         if DEBUG: print("create_node(%s) (node_id: " % node_type, end="")
@@ -84,16 +95,16 @@ class NodeDiagram():
         if node_type not in self.node_colors:
             if DEBUG: print("ERROR)\nInvalid node_type: %s" % node_type)
             exit()
+            
+        self.node_id += 1
+        if DEBUG: print("%s, addednum: %s)" % (self.__get_last_tag(), addendum.replace("\n", "")) )
+        if node_type == "title":
+            label = self.name
         else:
-            self.node_id += 1
-            if DEBUG: print("%s, addednum: %s)" % (self.__get_last_tag(), addendum.replace("\n", "")) )
-            if node_type == "title":
-                label = self.name
-            else:
-                label = node_type + addendum
-            self.graph.add_node(pydot.Node(str(self.node_id), label=label, style="filled",
-                                                              fillcolor=self.node_colors[node_type]))
-            return self.node_id
+            label = node_type + addendum
+        self.graph.add_node(pydot.Node(str(self.node_id), label=label, style="filled",
+                                                            fillcolor=self.node_colors[node_type]))
+        return self.node_id
 
     def __attach_ellipse(self, node_type, parent_id):
         # Add indicator that multiple nodes of the given type likely exist
@@ -109,19 +120,22 @@ class NodeDiagram():
         if self.generated:
             if DEBUG: print("Graph has already been generated")
             return
-        else:
-            if DEBUG: print("\n" + self.name)
-            self.__create_node("title")
-            self.__generate_edges()
-            self.generated = True
+
+        if DEBUG: print("\n" + self.name)
+        self.__create_node("title")
+        self.__generate_edges()
+        self.generated = True
 
     def __generate_edges(self):
+
         stack = []
+        # generate a stack that mimics the structure of the text indentations
         for x in range(len(self.node_ids)):
             depth = self.depth[x]
             stack[depth:] = [self.node_ids[x]]
             print(stack)
 
+            # attach the last 2 nodes of the stack
             if(len(stack) > 1):
                 self.__add_child(stack[-2], stack[-1])
                 if(self.is_multinode[x]):
@@ -149,10 +163,10 @@ def quick_make():
         i += 1
 
 def main():
-    # quick_make()
-    test = NodeDiagram("FEATURE_SWITCH")
-    test.generate_graph()
-    test.generate_file()
+    quick_make()
+    # test = NodeDiagram("FEATURE_SWITCH")
+    # test.generate_graph()
+    # test.generate_file()
 
 if __name__ == "__main__":
     main()
